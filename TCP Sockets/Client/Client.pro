@@ -1,10 +1,10 @@
 #-------------------------------------------------
 #
-# Project created by QtCreator 2017-09-16T18:18:39
+# Project created by QtCreator 2017-09-17T14:12:18
 #
 #-------------------------------------------------
 
-QT       += core gui
+QT       += core gui network
 
 greaterThan(QT_MAJOR_VERSION, 4): QT += widgets
 
@@ -25,10 +25,13 @@ DEFINES += QT_DEPRECATED_WARNINGS
 
 SOURCES += \
         main.cpp \
-        mainwindow.cpp
+        mainwindow.cpp \
+    connectionwindow.cpp
 
 HEADERS += \
-        mainwindow.h
+        mainwindow.h \
+    connectionwindow.h
 
 FORMS += \
-        mainwindow.ui
+        mainwindow.ui \
+    connectionwindow.ui
