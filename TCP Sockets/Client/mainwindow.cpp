@@ -19,7 +19,12 @@ void MainWindow::OnSendClicked()
 {
     if(!ui->messageInput->text().isEmpty())
     {
-        dataStream << ui->messageInput->text() << "\n";
+        QByteArray block;
+        QDataStream out(&block, QIODevice::WriteOnly);
+        out.setVersion(QDataStream::Qt_5_9);
+        out << ui->messageInput->text() << "\n";
+        tcpSocket->write(block);
+
         ui->messageInput->clear();
     }
 }

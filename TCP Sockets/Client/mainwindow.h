@@ -26,7 +26,6 @@ private slots:
 private:
     Ui::MainWindow *ui;
     QTcpSocket* tcpSocket;
-    QDataStream dataStream;
 };
 
 #endif // MAINWINDOW_H

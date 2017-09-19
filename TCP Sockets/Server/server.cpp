@@ -2,42 +2,16 @@
 
 Server::Server(QWidget* parent) : QDialog(parent)
   , statusLabel(new QLabel)
-  , tcpServer(Q_NULLPTR)
-  , networkSession(0)
+  , tcpServer(new QTcpServer(this))
 {
     setWindowFlags(windowFlags() & ~Qt::WindowContextHelpButtonHint);
     statusLabel->setTextInteractionFlags(Qt::TextBrowserInteraction);
 
-    QNetworkConfigurationManager manager;
-
-    if(manager.capabilities() & QNetworkConfigurationManager::NetworkSessionRequired)
-    {
-        QSettings settings(QSettings::UserScope, QLatin1String("QtProject"));
-        settings.beginGroup(QLatin1String("QtNetwork"));
-        const QString id = settings.value(QLatin1String("DefaultNetworkConfiguration")).toString();
-        settings.endGroup();
-
-        QNetworkConfiguration config = manager.configurationFromIdentifier(id);
-        if ((config.state() & QNetworkConfiguration::Discovered) !=
-                QNetworkConfiguration::Discovered) {
-            config = manager.defaultConfiguration();
-        }
-
-        networkSession = new QNetworkSession(config, this);
-        connect(networkSession, &QNetworkSession::opened, this, &Server::sessionOpened);
-
-        statusLabel->setText(tr("Opening network session."));
-        networkSession->open();
-    }
-    else
-    {
-        sessionOpened();
-    }
+    sessionOpened();
 
     QPushButton *quitButton = new QPushButton(tr("Quit"));
     quitButton->setAutoDefault(false);
     connect(quitButton, &QAbstractButton::clicked, this, &QWidget::close);
-    //connect(tcpServer, &QTcpServer::newConnection, this, &Server::sendFortune);
 
     QHBoxLayout *buttonLayout = new QHBoxLayout;
     buttonLayout->addStretch(1);
@@ -68,21 +42,6 @@ Server::Server(QWidget* parent) : QDialog(parent)
 
 void Server::sessionOpened()
 {
-    if (networkSession) {
-        QNetworkConfiguration config = networkSession->configuration();
-        QString id;
-        if (config.type() == QNetworkConfiguration::UserChoice)
-            id = networkSession->sessionProperty(QLatin1String("UserChoiceConfiguration")).toString();
-        else
-            id = config.identifier();
-
-        QSettings settings(QSettings::UserScope, QLatin1String("QtProject"));
-        settings.beginGroup(QLatin1String("QtNetwork"));
-        settings.setValue(QLatin1String("DefaultNetworkConfiguration"), id);
-        settings.endGroup();
-    }
-
-    tcpServer = new QTcpServer(this);
     if (!tcpServer->listen()) {
         QMessageBox::critical(this, tr("Fortune Server"),
                               tr("Unable to start the server: %1.")

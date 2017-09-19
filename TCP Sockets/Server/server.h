@@ -18,8 +18,7 @@ private slots:
 
 private:
     QLabel *statusLabel;
-    QTcpServer *tcpServer;
-    QNetworkSession* networkSession;
+    QTcpServer* tcpServer;
 };
 
 #endif // SERVER_H
