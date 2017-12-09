@@ -1,7 +1,11 @@
 import java.io.*;
 import java.net.*;
+import java.nio.ByteBuffer;
 
 class Client {
+    final static int SERVER_UDP_PORT = 8888;
+    final private static int BUFFER_LENGTH = 65507;
+    final private static int UDP_RECEIVE_TIMEOUT = 300;
 
     public static void main(String argv[]) throws Exception {
         String request, serverResponse;
@@ -36,26 +40,32 @@ class Client {
             }
 
             while (clientSocket != null && !clientSocket.isClosed()) {
-                System.out.print("(You)>> ");
+                System.out.print("You >> ");
                 request = inFromUser.readLine();
 
                 try {
                     outToServer.writeBytes(request + "\n");
                     outToServer.flush();
 
-                    if (request.startsWith("download")) {
+                    if (request.startsWith("download") || request.startsWith("downloadUDP")) {
                         String fileName = request.substring(request.indexOf(' ') + 1);
                         System.out.println("File name: " + fileName);
                         File file = new File(fileName);
+                        file.delete();
                         DataOutputStream writer = new DataOutputStream(new FileOutputStream(file));
 
-                        download(clientSocket, writer, file);
-                    } else {
-                        serverResponse = inFromServer.readLine();
-                        System.out.println(serverResponse);
-                        if (serverResponse.equalsIgnoreCase("close")) {
-                            clientSocket.close();
+                        if(request.startsWith("downloadUDP")) {
+                            downloadUDP(writer, file);
                         }
+                        else{
+                            download(clientSocket, writer, file);
+                        }
+                    } else {
+                            serverResponse = inFromServer.readLine();
+                            System.out.println(serverResponse);
+                            if (serverResponse.equalsIgnoreCase("close")) {
+                                clientSocket.close();
+                            }
                     }
                 } catch (IOException exception) {
                     System.out.println("A Error occured when sending to server. Try again later.\n");
@@ -105,5 +115,58 @@ class Client {
         }
 
         return success;
+    }
+
+    private static boolean downloadUDP(DataOutputStream writer, File file){
+        DatagramSocket udpSocket = null;
+        boolean success = true;
+        byte[] buffer = new byte[BUFFER_LENGTH];
+        DatagramPacket udpPacket = new DatagramPacket(buffer, buffer.length);
+
+        try {
+            udpSocket = new DatagramSocket(SERVER_UDP_PORT);
+            udpSocket.setSoTimeout(UDP_RECEIVE_TIMEOUT);
+        } catch (SocketException e) {
+            e.printStackTrace();
+        }
+
+        long fileSize = getFileSize(udpSocket);
+        System.out.println("File size: " + fileSize);
+
+        while(file.length() < fileSize){
+            try {
+                udpSocket.receive(udpPacket);
+                writer.write(udpPacket.getData(), 0, udpPacket.getLength());
+                writer.flush();
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        }
+
+        try {
+            writer.close();
+            udpSocket.close();
+            System.out.println("Download complete!");
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+
+        return success;
+    }
+
+    private static long getFileSize(DatagramSocket udpSocket){
+        ByteBuffer buffer = ByteBuffer.allocate(Long.BYTES);
+        long fileSize = 0;
+        DatagramPacket udpPacket = new DatagramPacket(buffer.array(), buffer.array().length);
+        try {
+            udpSocket.receive(udpPacket);
+            buffer.put(udpPacket.getData());
+            buffer.flip();
+            fileSize = buffer.getLong();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+
+        return fileSize;
     }
 }

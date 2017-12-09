@@ -1,10 +1,13 @@
 import java.io.*;
 import java.net.*;
+import java.nio.ByteBuffer;
 import java.time.LocalTime;
 import java.util.ArrayList;
 
 class Server {
     private static final String prefix = "Server >> ";
+    private static final int UDP_PORT = 8888;
+    private static final int BUFFER_LENGTH = 65507;
 
     public static void main(String argv[]) throws Exception {
         String clientRequest;
@@ -21,7 +24,13 @@ class Server {
 
             while (!connectionSocket.isClosed()) {
                 System.out.println("Waiting for client request...");
-                clientRequest = inFromClient.readLine();
+                try {
+                    clientRequest = inFromClient.readLine();
+                }
+                catch(SocketException e){
+                    e.printStackTrace();
+                    break;
+                }
                 System.out.println("Client request: " + clientRequest);
 
                 String command, arguments;
@@ -56,6 +65,11 @@ class Server {
 
                     case "download": {
                         sendFile(connectionSocket, arguments);
+                    }
+                    break;
+
+                    case "downloadUDP":{
+                        sendFileUDP(connectionSocket.getInetAddress(), arguments);
                     }
                     break;
 
@@ -140,6 +154,50 @@ class Server {
                 e.printStackTrace();
             }
         }
+    }
+
+    private static void sendFileUDP(InetAddress address, String fileName){
+        DatagramSocket udpSocket = null;
+        //byte[] buffer = new byte[BUFFER_LENGTH];
+
+        try {
+            udpSocket = new DatagramSocket(UDP_PORT);
+        } catch (SocketException e) {
+            e.printStackTrace();
+        }
+
+        File file = new File("./Files/" + fileName);
+        if(file.exists())
+        {
+            try {
+                DataInputStream reader = new DataInputStream(new FileInputStream(file));
+                long fileLength = file.length();
+
+                sendFileSize(udpSocket, address, fileLength);
+
+                System.out.println("Address: " + address.toString());
+                System.out.println("File length: " + fileLength);
+
+                byte[] buffer = new byte[BUFFER_LENGTH];
+                int length;
+                while((length = reader.read(buffer)) > 0){
+                    DatagramPacket udpPacket = new DatagramPacket(buffer, buffer.length, address, UDP_PORT);
+                    udpSocket.send(udpPacket);
+                }
+
+                reader.close();
+                udpSocket.close();
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        }
+    }
+
+    private static void sendFileSize(DatagramSocket udpSocket, InetAddress address, long fileSize) throws IOException {
+        ByteBuffer buffer = ByteBuffer.allocate(Long.BYTES);
+        buffer.putLong(fileSize);
+        DatagramPacket udpPacket = new DatagramPacket(buffer.array(), buffer.array().length, address, UDP_PORT);
+        udpSocket.send(udpPacket);
     }
 
     private static void closeConnection(Socket socket){
