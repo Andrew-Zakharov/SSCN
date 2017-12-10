@@ -60,7 +60,7 @@ class Client {
                         String fileName = request.substring(request.indexOf(' ') + 1);
 
                         if(downloadFolderStatus){
-                            fileName = DOWNLOADS_FOLDER_NAME + "/" + fileName;
+                            fileName = "./" + DOWNLOADS_FOLDER_NAME + "/" + fileName;
                         }
 
                         File file = new File(fileName);

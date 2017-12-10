@@ -54,7 +54,8 @@ Server/*.iws
 # IntelliJ
 Client/out/
 Server/out/
-Client/Downloads
+Server/Files/
+Client/Downloads/
 
 # mpeltonen/sbt-idea plugin
 Client/.idea_modules/
