@@ -1,6 +1,11 @@
+import sun.misc.IOUtils;
+import sun.nio.ch.IOUtil;
+
 import java.io.*;
 import java.net.*;
 import java.nio.ByteBuffer;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.LocalTime;
 import java.util.ArrayList;
 
@@ -10,6 +15,8 @@ class Server {
     private static final int UDP_LENGTH = 65507;
     private static final int BUFFER_LENGTH = 508;
     private static final int UDP_TIMEOUT = 1000;
+    private static final byte URGENT_DATA = -77;
+    private static final int TCP_DATA_LENGTH = 65000;
 
     public static void main(String argv[]) throws Exception {
         String clientRequest;
@@ -18,6 +25,7 @@ class Server {
         while(true) {
             Socket connectionSocket = welcomeSocket.accept();
             connectionSocket.setKeepAlive(true);
+            connectionSocket.setOOBInline(true);
             DataInputStream inFromClient =
                     new DataInputStream(connectionSocket.getInputStream());
             DataOutputStream outToClient = new DataOutputStream(connectionSocket.getOutputStream());
@@ -143,17 +151,43 @@ class Server {
                 out.writeLong(fileLength);
                 out.flush();
 
-                byte[] buffer = new byte[65536];
+                /*byte[] fileData = new byte[(int)fileLength];
+                reader.readFully(fileData);
+
+                for(byte i = Byte.MIN_VALUE; i < Byte.MAX_VALUE; i++){
+                    int count = 0;
+                    for(int j = 0; j < fileData.length; j++){
+                        if(i == fileData[j]){
+                            count++;
+                        }
+                    }
+
+                    System.out.print("\r" + i + " Count: " + count);
+                    if(count == 0){
+                        System.out.println("Byte: " + i + " not in file");
+                    }
+                }*/
+
+                byte[] buffer = new byte[TCP_DATA_LENGTH];
                 int length;
+                long bytesSend = 0L;
                 while ((length = reader.read(buffer)) > 0) {
                     out.write(buffer, 0, length);
-                    out.flush();
-                    System.out.println("Send " + length + " bytes");
+                    //out.flush();
+
+                    bytesSend += length;
+
+                    if(bytesSend % 256 == 0){
+                        socket.sendUrgentData(URGENT_DATA);
+                        System.out.println("Urgent data sent");
+                    }
+
+                    System.out.print("\rSending file... " + bytesSend + " / " + fileLength + " " + (bytesSend * 100) / fileLength + "% ");
                 }
                 reader.close();
-                out.flush();
             } catch (IOException e) {
                 e.printStackTrace();
+
             }
         }
     }

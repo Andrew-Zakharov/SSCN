@@ -3,13 +3,14 @@ import java.net.*;
 import java.nio.ByteBuffer;
 import java.text.DecimalFormat;
 import java.text.NumberFormat;
-import java.util.Arrays;
 
 class Client {
-    final static private int SERVER_UDP_PORT = 8888;
+    final static private int UDP_PORT = 8888;
     final private static int BUFFER_LENGTH = 1024;
     final private static int UDP_LENGTH = 65507;
     final private static int UDP_RECEIVE_TIMEOUT = 1000;
+    final private static byte URGENT_DATA = -77;
+    final private static int TCP_DATA_LENGTH = 65000;
 
     public static void main(String argv[]) throws Exception {
         String request, serverResponse;
@@ -38,6 +39,7 @@ class Client {
 
             if (clientSocket != null && clientSocket.isConnected()) {
                 clientSocket.setKeepAlive(true);
+                clientSocket.setOOBInline(true);
                 connected = true;
                 outToServer = new DataOutputStream(clientSocket.getOutputStream());
                 inFromServer = new DataInputStream(clientSocket.getInputStream());
@@ -92,25 +94,50 @@ class Client {
         } catch (IOException e) {
             e.printStackTrace();
         }
-        byte[] buffer = new byte[65536];
+        byte[] buffer = new byte[TCP_DATA_LENGTH];
         int length;
         long estimatedSize = 0;
+        int urgentDataIndex = -1;
+        boolean urgentDataFlag = false;
+        long bytesReceived = 0L;
+
         try {
             estimatedSize = inFromServer.readLong();
         } catch (IOException e) {
             e.printStackTrace();
         }
         System.out.println("Estimated size " + estimatedSize);
+
         try {
             while (file.length() < estimatedSize) {
+                //System.out.println("Prepare for read...");
                 length = inFromServer.read(buffer);
-                System.out.println("Prepare to receive bytes from server...");
-                //inFromServer.readFully(buffer);
-                System.out.println("Received " + length + " bytes from server");
-                System.out.println("Prepare for write bytes...");
-                //writer.write(buffer, 0, length);
-                writer.write(buffer, 0, length);
-                System.out.println("Write " + length + " bytes to file " + file.getName());
+
+                urgentDataFlag = false;
+
+                for(int i = 0; i < length; i++) {
+                    if(buffer[i] == URGENT_DATA){
+                        urgentDataIndex = i;
+                        urgentDataFlag = true;
+                        System.out.print("Out-of-band data. ");
+                        break;
+                    }
+                }
+
+                if(urgentDataFlag){
+                    bytesReceived += length - 1;
+                    byte[] temp = new byte[length];
+                    System.arraycopy(buffer, 0, temp, 0, urgentDataIndex);
+                    System.arraycopy(buffer, urgentDataIndex + 1, temp, urgentDataIndex, length - urgentDataIndex - 1);
+                    writer.write(temp, 0, length - 1);
+                }
+                else{
+                    bytesReceived += length;
+                    writer.write(buffer, 0, length);
+                }
+                writer.flush();
+                System.out.println("Received: " + bytesReceived + " bytes");
+                //System.out.println("Downloading file... " + file.length() + " / " + estimatedSize + " " + (file.length() * 100) / estimatedSize + "% ");
             }
             writer.close();
             System.out.println("Download complete!");
@@ -130,7 +157,7 @@ class Client {
         DatagramPacket udpPacket = new DatagramPacket(buffer, buffer.length);
 
         try {
-            udpSocket = new DatagramSocket(SERVER_UDP_PORT);
+            udpSocket = new DatagramSocket(UDP_PORT);
             udpSocket.setSoTimeout(UDP_RECEIVE_TIMEOUT);
             udpSocket.setReuseAddress(true);
         } catch (SocketException e) {
