@@ -176,6 +176,8 @@ class Client {
                 System.out.print("\rDownloading file... " + file.length() + " / " + fileSize + " " + (file.length() * 100) / fileSize + "% ");
             } catch (IOException e) {
                 System.out.println(e.getMessage());
+                System.out.println("Download failed!");
+                break;
             }
         }
         long endTime = System.nanoTime();
