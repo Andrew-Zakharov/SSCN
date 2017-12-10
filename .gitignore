@@ -2,47 +2,73 @@
 # Reference: https://intellij-support.jetbrains.com/hc/en-us/articles/206544839
 
 # User-specific stuff:
-.idea/**/workspace.xml
-.idea/**/tasks.xml
-.idea/dictionaries
+Client/.idea/**/workspace.xml
+Client/.idea/**/tasks.xml
+Client/.idea/dictionaries
+
+Server/.idea/**/workspace.xml
+Server/.idea/**/tasks.xml
+Server/.idea/dictionaries
 
 # Sensitive or high-churn files:
-.idea/**/dataSources/
-.idea/**/dataSources.ids
-.idea/**/dataSources.xml
-.idea/**/dataSources.local.xml
-.idea/**/sqlDataSources.xml
-.idea/**/dynamic.xml
-.idea/**/uiDesigner.xml
+Client/.idea/**/dataSources/
+Client/.idea/**/dataSources.ids
+Client/.idea/**/dataSources.xml
+Client/.idea/**/dataSources.local.xml
+Client/.idea/**/sqlDataSources.xml
+Client/.idea/**/dynamic.xml
+Client/.idea/**/uiDesigner.xml
+
+Server/.idea/**/dataSources/
+Server/.idea/**/dataSources.ids
+Server/.idea/**/dataSources.xml
+Server/.idea/**/dataSources.local.xml
+Server/.idea/**/sqlDataSources.xml
+Server/.idea/**/dynamic.xml
+Server/.idea/**/uiDesigner.xml
 
 # Gradle:
-.idea/**/gradle.xml
-.idea/**/libraries
+Client/.idea/**/gradle.xml
+Client/.idea/**/libraries
+
+Server/.idea/**/gradle.xml
+Server/.idea/**/libraries
 
 # CMake
-cmake-build-debug/
+Client/cmake-build-debug/
+
+Server/cmake-build-debug/
 
 # Mongo Explorer plugin:
-.idea/**/mongoSettings.xml
+Client/.idea/**/mongoSettings.xml
+
+Server/.idea/**/mongoSettings.xml
 
 ## File-based project format:
-*.iws
+Client/*.iws
+
+Server/*.iws
 
 ## Plugin-specific files:
 
 # IntelliJ
-out/
-Server/Files/
-Server/out/artifacts/Server_jar/Files/
+Client/out/
+Server/out/
 
 # mpeltonen/sbt-idea plugin
-.idea_modules/
+Client/.idea_modules/
+
+Server/.idea_modules/
 
 # JIRA plugin
-atlassian-ide-plugin.xml
+Client/atlassian-ide-plugin.xml
+
+Server/atlassian-ide-plugin.xml
 
 # Cursive Clojure plugin
-.idea/replstate.xml
+Client/.idea/replstate.xml
+
+Server/.idea/replstate.xml
 
 # Crashlytics plugin (for Android Studio and IntelliJ)
 com_crashlytics_export_strings.xml
