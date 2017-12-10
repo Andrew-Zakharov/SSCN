@@ -7,7 +7,11 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="371ec219-8ba7-4070-85b5-d20e0d476c14" name="Default" comment="">
-      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/src/Client.java" afterPath="$PROJECT_DIR$/src/Client.java" />
+      <change type="DELETED" beforePath="$PROJECT_DIR$/../Server/Files/JK_tb.txt" afterPath="" />
+      <change type="DELETED" beforePath="$PROJECT_DIR$/../Server/Files/Novy_textovy_dokument_4.txt" afterPath="" />
+      <change type="DELETED" beforePath="$PROJECT_DIR$/../Server/Files/ServerApp.java" afterPath="" />
+      <change type="DELETED" beforePath="$PROJECT_DIR$/../Server/Files/VirtualBox-5.1.26-117224-Win.exe" afterPath="" />
+      <change type="DELETED" beforePath="$PROJECT_DIR$/../Server/Files/lab1-2.rar" afterPath="" />
       <change type="MODIFICATION" beforePath="$PROJECT_DIR$/../Server/.idea/workspace.xml" afterPath="$PROJECT_DIR$/../Server/.idea/workspace.xml" />
     </list>
     <ignored path="$PROJECT_DIR$/out/" />
@@ -63,7 +67,7 @@
     <detection-done>true</detection-done>
     <sorting>DEFINITION_ORDER</sorting>
   </component>
-  <component name="ProjectFrameBounds" extendedState="6">
+  <component name="ProjectFrameBounds" extendedState="7">
     <option name="x" value="260" />
     <option name="y" value="20" />
     <option name="width" value="1400" />
@@ -239,15 +243,15 @@
       <option name="presentableId" value="Default" />
       <updated>1512824581884</updated>
       <workItem from="1512824585494" duration="11052000" />
-      <workItem from="1512887798631" duration="27424000" />
+      <workItem from="1512887798631" duration="27638000" />
     </task>
     <servers />
   </component>
   <component name="TimeTrackingManager">
-    <option name="totallyTimeSpent" value="38476000" />
+    <option name="totallyTimeSpent" value="38690000" />
   </component>
   <component name="ToolWindowManager">
-    <frame x="-9" y="-9" width="1938" height="1048" extended-state="6" />
+    <frame x="-9" y="-9" width="1938" height="1048" extended-state="7" />
     <layout>
       <window_info id="Palette" active="false" anchor="right" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.33" sideWeight="0.5" order="3" side_tool="false" content_ui="tabs" />
       <window_info id="TODO" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.33" sideWeight="0.5" order="6" side_tool="false" content_ui="tabs" />

@@ -33,6 +33,7 @@ cmake-build-debug/
 # IntelliJ
 out/
 Server/Files/
+Server/out/artifacts/Server_jar/Files/
 
 # mpeltonen/sbt-idea plugin
 .idea_modules/
