@@ -179,9 +179,9 @@ class Client {
             }
         }
         long endTime = System.nanoTime();
-        double bandwidth = file.length() / (double)((endTime - startTime) / 1000000000L);
+        //double bandwidth = file.length() / (double)((endTime - startTime) / 1000000000L);
         NumberFormat formatter = new DecimalFormat("#0.00");
-        System.out.print(formatter.format(bandwidth / (1024 * 1024)) + " MB/s ");
+       //System.out.print(formatter.format(bandwidth / (1024 * 1024)) + " MB/s ");
         System.out.println("Time: " + formatter.format((double)(endTime - startTime) / 1000000000L) + " s");
 
         try {
