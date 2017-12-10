@@ -11,7 +11,7 @@ import java.util.ArrayList;
 
 class Server {
     private static final String prefix = "Server >> ";
-    private static final int UDP_PORT = 8888;
+    private static final int UDP_PORT = 55555;
     private static final int UDP_LENGTH = 65507;
     private static final int BUFFER_LENGTH = 508;
     private static final int UDP_TIMEOUT = 1000;

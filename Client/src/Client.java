@@ -5,7 +5,7 @@ import java.text.DecimalFormat;
 import java.text.NumberFormat;
 
 class Client {
-    final static private int UDP_PORT = 8888;
+    final static private int UDP_PORT = 55555;
     final private static int BUFFER_LENGTH = 1024;
     final private static int UDP_LENGTH = 65507;
     final private static int UDP_RECEIVE_TIMEOUT = 1000;
@@ -183,6 +183,7 @@ class Client {
             } catch (IOException e) {
                 System.out.println(e.getMessage());
                 System.out.println("Download failed!");
+                success = false;
                 break;
             }
         }
@@ -199,7 +200,9 @@ class Client {
             e.printStackTrace();
         }
 
-        System.out.println("Download complete!");
+        if(success) {
+            System.out.println("Download complete!");
+        }
 
         return success;
     }
@@ -232,6 +235,9 @@ class Client {
             catch (SecurityException se){
                 System.out.println(se.getMessage());
             }
+        }
+        else{
+            result = true;
         }
 
         return result;
