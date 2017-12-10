@@ -11,6 +11,7 @@ class Client {
     final private static int UDP_RECEIVE_TIMEOUT = 1000;
     final private static byte URGENT_DATA = -77;
     final private static int TCP_DATA_LENGTH = 65000;
+    final private static String DOWNLOADS_FOLDER_NAME = "Downloads";
 
     public static void main(String argv[]) throws Exception {
         String request, serverResponse;
@@ -19,6 +20,8 @@ class Client {
         DataOutputStream outToServer = null;
         DataInputStream inFromServer = null;
         boolean connected = false;
+
+        boolean downloadFolderStatus = createDownloadsFolder();
 
         while (!connected) {
             String ip, port;
@@ -55,9 +58,12 @@ class Client {
 
                     if (request.startsWith("download") || request.startsWith("downloadUDP")) {
                         String fileName = request.substring(request.indexOf(' ') + 1);
-                        System.out.println("File name: " + fileName);
+
+                        if(downloadFolderStatus){
+                            fileName = DOWNLOADS_FOLDER_NAME + "/" + fileName;
+                        }
+
                         File file = new File(fileName);
-                        file.delete();
                         DataOutputStream writer = new DataOutputStream(new FileOutputStream(file));
 
                         if(request.startsWith("downloadUDP")) {
@@ -212,5 +218,22 @@ class Client {
         }
 
         return fileSize;
+    }
+
+    private static boolean createDownloadsFolder(){
+        File downloadsFolder = new File(DOWNLOADS_FOLDER_NAME);
+        boolean result = false;
+
+        if(!downloadsFolder.exists()){
+            try{
+                downloadsFolder.mkdir();
+                result = true;
+            }
+            catch (SecurityException se){
+                System.out.println(se.getMessage());
+            }
+        }
+
+        return result;
     }
 }
