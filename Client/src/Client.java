@@ -1,11 +1,15 @@
 import java.io.*;
 import java.net.*;
 import java.nio.ByteBuffer;
+import java.text.DecimalFormat;
+import java.text.NumberFormat;
+import java.util.Arrays;
 
 class Client {
-    final static int SERVER_UDP_PORT = 8888;
-    final private static int BUFFER_LENGTH = 65507;
-    final private static int UDP_RECEIVE_TIMEOUT = 300;
+    final static private int SERVER_UDP_PORT = 8888;
+    final private static int BUFFER_LENGTH = 1024;
+    final private static int UDP_LENGTH = 65507;
+    final private static int UDP_RECEIVE_TIMEOUT = 1000;
 
     public static void main(String argv[]) throws Exception {
         String request, serverResponse;
@@ -68,6 +72,7 @@ class Client {
                             }
                     }
                 } catch (IOException exception) {
+                    System.out.println(exception.getMessage());
                     System.out.println("A Error occured when sending to server. Try again later.\n");
                 }
 
@@ -110,6 +115,7 @@ class Client {
             writer.close();
             System.out.println("Download complete!");
         } catch (IOException exception) {
+            System.out.println(exception.getMessage());
             System.out.println("Can't write bytes. Download canceled.");
             success = false;
         }
@@ -120,12 +126,13 @@ class Client {
     private static boolean downloadUDP(DataOutputStream writer, File file){
         DatagramSocket udpSocket = null;
         boolean success = true;
-        byte[] buffer = new byte[BUFFER_LENGTH];
+        byte[] buffer = new byte[UDP_LENGTH];
         DatagramPacket udpPacket = new DatagramPacket(buffer, buffer.length);
 
         try {
             udpSocket = new DatagramSocket(SERVER_UDP_PORT);
             udpSocket.setSoTimeout(UDP_RECEIVE_TIMEOUT);
+            udpSocket.setReuseAddress(true);
         } catch (SocketException e) {
             e.printStackTrace();
         }
@@ -133,23 +140,31 @@ class Client {
         long fileSize = getFileSize(udpSocket);
         System.out.println("File size: " + fileSize);
 
+        long startTime = System.nanoTime();
         while(file.length() < fileSize){
             try {
                 udpSocket.receive(udpPacket);
                 writer.write(udpPacket.getData(), 0, udpPacket.getLength());
                 writer.flush();
+                System.out.print("\rDownloading file... " + file.length() + " / " + fileSize + " " + (file.length() * 100) / fileSize + "% ");
             } catch (IOException e) {
-                e.printStackTrace();
+                System.out.println(e.getMessage());
             }
         }
+        long endTime = System.nanoTime();
+        double bandwidth = file.length() / (double)((endTime - startTime) / 1000000000L);
+        NumberFormat formatter = new DecimalFormat("#0.00");
+        System.out.print(formatter.format(bandwidth / (1024 * 1024)) + " MB/s ");
+        System.out.println("Time: " + formatter.format((double)(endTime - startTime) / 1000000000L) + " s");
 
         try {
             writer.close();
             udpSocket.close();
-            System.out.println("Download complete!");
         } catch (IOException e) {
             e.printStackTrace();
         }
+
+        System.out.println("Download complete!");
 
         return success;
     }
