@@ -7,7 +7,7 @@ import java.text.NumberFormat;
 class Client {
     final static private int UDP_PORT = 55555;
     final private static int BUFFER_LENGTH = 1024;
-    final private static int UDP_LENGTH = 65507;
+    final private static int UDP_LENGTH = 1432;
     final private static int UDP_RECEIVE_TIMEOUT = 1000;
     final private static byte URGENT_DATA = -77;
     final private static int TCP_DATA_LENGTH = 65000;
