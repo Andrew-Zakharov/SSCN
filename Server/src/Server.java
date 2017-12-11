@@ -12,7 +12,7 @@ import java.util.ArrayList;
 class Server {
     private static final String prefix = "Server >> ";
     private static final int UDP_PORT = 55555;
-    private static final int UDP_LENGTH = 1432;
+    private static final int UDP_LENGTH = 65507;
     private static final int BUFFER_LENGTH = 508;
     private static final int UDP_TIMEOUT = 1000;
     private static final byte URGENT_DATA = -77;
@@ -151,23 +151,6 @@ class Server {
                 out.writeLong(fileLength);
                 out.flush();
 
-                /*byte[] fileData = new byte[(int)fileLength];
-                reader.readFully(fileData);
-
-                for(byte i = Byte.MIN_VALUE; i < Byte.MAX_VALUE; i++){
-                    int count = 0;
-                    for(int j = 0; j < fileData.length; j++){
-                        if(i == fileData[j]){
-                            count++;
-                        }
-                    }
-
-                    System.out.print("\r" + i + " Count: " + count);
-                    if(count == 0){
-                        System.out.println("Byte: " + i + " not in file");
-                    }
-                }*/
-
                 byte[] buffer = new byte[TCP_DATA_LENGTH];
                 int length;
                 long bytesSend = 0L;
@@ -198,6 +181,7 @@ class Server {
         try {
             udpSocket = new DatagramSocket(UDP_PORT);
             udpSocket.setSoTimeout(UDP_TIMEOUT);
+            udpSocket.setReuseAddress(true);
         } catch (SocketException e) {
             System.out.println("Failed to create socket: " + e.getMessage());
             return;
@@ -217,10 +201,19 @@ class Server {
                 byte[] buffer = new byte[UDP_LENGTH];
                 int length;
                 long bytesSend = 0L;
-                while((length = reader.read(buffer)) > 0){
+                byte blockCounter = 1;
+                //DatagramPacket udpPacket
+                while((length = reader.read(buffer, 0, UDP_LENGTH - 1)) > 0){
                     try {
-                        DatagramPacket udpPacket = new DatagramPacket(buffer, length, address, UDP_PORT);
-                        udpSocket.send(udpPacket);
+                        buffer[UDP_LENGTH - 1] = blockCounter;
+                        do {
+                            DatagramPacket udpPacket = new DatagramPacket(buffer, buffer.length, address, UDP_PORT);
+                            udpSocket.send(udpPacket);
+                        } while (readStringFromSocket(udpSocket).equals("REJECTED"));
+                        if (blockCounter < 127)
+                            blockCounter++;
+                        else
+                            blockCounter = 0;
                         bytesSend += length;
                         System.out.print("\rSending file... " + bytesSend + " / " + fileLength + " " + (bytesSend * 100) / fileLength + "% ");
                     }
@@ -239,6 +232,26 @@ class Server {
         }
     }
 
+    public static String getStringFromPacket(DatagramPacket packet) {
+        try {
+            String stringFromPacket = new String(packet.getData(), 0, packet.getLength());
+            return stringFromPacket;
+        } catch (Exception e) {
+            System.out.println("Can't read from socket!");
+            return null;
+        }
+    }
+    public static String readStringFromSocket(DatagramSocket socket) {
+        byte[] buffer = new byte[UDP_LENGTH];
+        DatagramPacket packet = new DatagramPacket(buffer, buffer.length);
+        try {
+            socket.setSoTimeout(100);
+            socket.receive(packet);
+            return getStringFromPacket(packet);
+        } catch (IOException e) {
+            return "FALSE";
+        }
+    }
     private static void sendFileSize(DatagramSocket udpSocket, InetAddress address, long fileSize) throws IOException {
         ByteBuffer buffer = ByteBuffer.allocate(Long.BYTES);
         buffer.putLong(fileSize);
