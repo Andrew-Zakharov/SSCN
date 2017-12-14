@@ -4,10 +4,16 @@ import sun.nio.ch.IOUtil;
 import java.io.*;
 import java.net.*;
 import java.nio.ByteBuffer;
+import java.nio.channels.SelectionKey;
+import java.nio.channels.Selector;
+import java.nio.channels.ServerSocketChannel;
+import java.nio.channels.SocketChannel;
+import java.nio.channels.spi.SelectorProvider;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.LocalTime;
 import java.util.ArrayList;
+import java.util.Iterator;
 
 class Server {
     private static final String prefix = "Server >> ";
@@ -17,79 +23,130 @@ class Server {
     private static final int UDP_TIMEOUT = 1000;
     private static final byte URGENT_DATA = -77;
     private static final int TCP_DATA_LENGTH = 65000;
+    private static final String UNKNOWN_COMMAND = "Unknown command\n";
 
     public static void main(String argv[]) throws Exception {
         String clientRequest;
-        ServerSocket welcomeSocket = getServerSocket();
+        ServerSocketChannel serverChannel = getServerSocket();
+
+        Selector selector;
+        selector = SelectorProvider.provider().openSelector();
+
+        serverChannel.register(selector, SelectionKey.OP_ACCEPT);
 
         while(true) {
-            Socket connectionSocket = welcomeSocket.accept();
-            connectionSocket.setKeepAlive(true);
-            connectionSocket.setOOBInline(true);
-            DataInputStream inFromClient =
-                    new DataInputStream(connectionSocket.getInputStream());
-            DataOutputStream outToClient = new DataOutputStream(connectionSocket.getOutputStream());
+            //System.out.println("Client " + connectionSocket.getInetAddress().toString() + " connected.");
+            try{
+                selector.select();
+                Iterator selectedKeys = selector.selectedKeys().iterator();
 
-            System.out.println("Client " + connectionSocket.getInetAddress().toString() + " connected.");
+                while(selectedKeys.hasNext()){
+                    SelectionKey key = (SelectionKey) selectedKeys.next();
+                    selectedKeys.remove();
 
-            while (!connectionSocket.isClosed()) {
-                System.out.println("Waiting for client request...");
-                try {
-                    clientRequest = inFromClient.readLine();
-                }
-                catch(SocketException e){
-                    System.out.println(e.getMessage());
-                    break;
-                }
-                System.out.println("Client request: " + clientRequest);
-
-                String command, arguments;
-                if (clientRequest.contains(" ")) {
-                    command = clientRequest.substring(0, clientRequest.indexOf(' '));
-                    arguments = clientRequest.substring(clientRequest.indexOf(' ') + 1);
-                } else {
-                    command = clientRequest;
-                    arguments = "";
-                }
-
-                switch (command) {
-                    case "time": {
-                        sendTime(connectionSocket);
+                    if(!key.isValid()){
+                        continue;
                     }
-                    break;
 
-                    case "echo": {
-                        sendEcho(connectionSocket, arguments);
-                    }
-                    break;
-
-                    case "close": {
-                        closeConnection(connectionSocket);
-                    }
-                    break;
-
-                    case "ls": {
-                        sendFileList(connectionSocket);
-                    }
-                    break;
-
-                    case "download": {
-                        sendFile(connectionSocket, arguments);
-                    }
-                    break;
-
-                    case "downloadUDP":{
-                        sendFileUDP(connectionSocket.getInetAddress(), arguments);
-                    }
-                    break;
-
-                    default: {
-                        outToClient.writeBytes("Unknown command\n");
-                        outToClient.flush();
+                    if(key.isAcceptable()){
+                        accept(key, selector);
+                    }else if(key.isReadable()){
+                        read(key);
                     }
                 }
             }
-            System.out.println("Client " + connectionSocket.getInetAddress().toString() + " disconnected.");
+            catch(Exception e){
+                System.out.println(e.getMessage());
+            }
+        }
+    }
+
+    private static void accept(SelectionKey key, Selector selector){
+        try {
+            ServerSocketChannel serverSocketChannel = (ServerSocketChannel) key.channel();
+            SocketChannel socketChannel = serverSocketChannel.accept();
+            socketChannel.configureBlocking(false);
+            socketChannel.register(selector, SelectionKey.OP_READ);
+            socketChannel.socket().setKeepAlive(true);
+        } catch (IOException e) {
+            System.out.println(e.getMessage());
+        }
+    }
+
+    private static void read(SelectionKey key) throws IOException {
+        SocketChannel socketChannel = (SocketChannel) key.channel();
+        ByteBuffer byteBuffer = ByteBuffer.allocate(8192);
+        String clientRequest = "";
+
+        while (!clientRequest.contains("\n")) {
+            byteBuffer.clear();
+
+            int bytesRead;
+            try {
+                bytesRead = socketChannel.read(byteBuffer);
+            } catch (IOException e) {
+                key.cancel();
+                socketChannel.close();
+                return;
+            }
+
+            if (bytesRead == -1) {
+                key.channel().close();
+                key.cancel();
+                return;
+            }
+
+
+            if (bytesRead != 0) {
+                byte[] dataCopy = new byte[bytesRead];
+                System.arraycopy(byteBuffer.array(), 0, dataCopy, 0, bytesRead);
+                clientRequest += new String(dataCopy);
+            }
+        }
+
+        String command, arguments;
+        if (clientRequest.contains(" ")) {
+            command = clientRequest.substring(0, clientRequest.indexOf(' '));
+            arguments = clientRequest.substring(clientRequest.indexOf(' ') + 1);
+        } else {
+            command = clientRequest;
+            arguments = "";
+        }
+
+        switch (command) {
+            case "time\n": {
+                sendTime(key);
+            }
+            break;
+
+            case "echo": {
+                sendEcho(key, arguments);
+            }
+            break;
+
+            case "close": {
+                //closeConnection(connectionSocket);
+            }
+            break;
+
+            case "ls\n": {
+                sendFileList(key);
+            }
+            break;
+
+            case "download": {
+                //sendFile(connectionSocket, arguments);
+            }
+            break;
+
+            case "downloadUDP":{
+                //sendFileUDP(connectionSocket.getInetAddress(), arguments);
+            }
+            break;
+
+            default: {
+                sendUnknownCommand(key);
+            }
         }
     }
 
@@ -107,31 +164,50 @@ class Server {
         return fileNames;
     }
 
-    private static void sendTime(Socket socket) {
+    private static void sendTime(SelectionKey key) {
         try {
-            DataOutputStream out = new DataOutputStream(socket.getOutputStream());
-            out.writeBytes(prefix + LocalTime.now().toString() + "\n");
-            out.flush();
+            String time = LocalTime.now().toString() + "\n";
+
+            key.interestOps(SelectionKey.OP_WRITE);
+            SocketChannel socketChannel = (SocketChannel) key.channel();
+            socketChannel.write(ByteBuffer.wrap(time.getBytes()));
+            key.interestOps(SelectionKey.OP_READ);
         } catch (IOException e) {
             e.printStackTrace();
         }
     }
 
-    private static void sendEcho(Socket socket, String echo) {
+    private static void sendEcho(SelectionKey key, String echo) {
         try {
-            DataOutputStream out = new DataOutputStream(socket.getOutputStream());
-            out.writeBytes(prefix + echo + "\n");
-            out.flush();
+            echo += "\n";
+            key.interestOps(SelectionKey.OP_WRITE);
+            SocketChannel socketChannel = (SocketChannel) key.channel();
+            socketChannel.write(ByteBuffer.wrap(echo.getBytes()));
+            key.interestOps(SelectionKey.OP_READ);
         } catch (IOException e) {
             e.printStackTrace();
         }
     }
 
-    private static void sendFileList(Socket socket) {
+    private static void sendFileList(SelectionKey key) {
         try {
-            DataOutputStream out = new DataOutputStream(socket.getOutputStream());
-            out.writeBytes(prefix + getFileNames().toString() + "\n");
-            out.flush();
+            String fileList = getFileNames().toString() + "\n";
+
+            key.interestOps(SelectionKey.OP_WRITE);
+            SocketChannel socketChannel = (SocketChannel) key.channel();
+            socketChannel.write(ByteBuffer.wrap(fileList.getBytes()));
+            key.interestOps(SelectionKey.OP_READ);
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
+    private static void sendUnknownCommand(SelectionKey key){
+        try {
+            key.interestOps(SelectionKey.OP_WRITE);
+            SocketChannel socketChannel = (SocketChannel) key.channel();
+            socketChannel.write(ByteBuffer.wrap(UNKNOWN_COMMAND.getBytes()));
+            key.interestOps(SelectionKey.OP_READ);
         } catch (IOException e) {
             e.printStackTrace();
         }
@@ -271,12 +347,12 @@ class Server {
     }
 
 
-    private static ServerSocket getServerSocket() {
-        ServerSocket serverSocket = null;
+    private static ServerSocketChannel getServerSocket() {
+        ServerSocketChannel serverChannel = null;
         int port = -1;
         BufferedReader input = new BufferedReader(new InputStreamReader(System.in));
 
-        while (serverSocket == null) {
+        while (serverChannel == null) {
             try {
                 while (port == -1) {
                     try {
@@ -286,14 +362,16 @@ class Server {
                         System.out.println("Wrong port format!");
                     }
                 }
-                serverSocket = new ServerSocket(port);
+                serverChannel = ServerSocketChannel.open();
+                serverChannel.configureBlocking(false);
+                serverChannel.socket().bind(new InetSocketAddress("localhost", port));
             } catch (Exception e) {
                 System.out.println("can't start server on this port!");
                 port = -1;
             }
         }
         System.out.println(
-                "Server successfully started: " + serverSocket.getLocalSocketAddress().toString() + ":" + port);
-        return serverSocket;
+                "Server successfully started: " + port);
+        return serverChannel;
     }
 }

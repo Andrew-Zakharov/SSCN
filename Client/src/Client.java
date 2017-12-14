@@ -76,7 +76,7 @@ class Client {
                         }
                     } else {
                         serverResponse = inFromServer.readLine();
-                        System.out.println(serverResponse);
+                        System.out.println("Server >> " + serverResponse);
                         if (serverResponse.equalsIgnoreCase("close")) {
                             clientSocket.close();
                         }
