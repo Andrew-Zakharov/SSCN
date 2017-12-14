@@ -1,6 +1,3 @@
-import sun.misc.IOUtils;
-import sun.nio.ch.IOUtil;
-
 import java.io.*;
 import java.net.*;
 import java.nio.ByteBuffer;
@@ -10,20 +7,12 @@ import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
 import java.nio.channels.spi.SelectorProvider;
 import java.nio.charset.Charset;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.time.LocalTime;
 import java.util.*;
 
 class Server {
-    private static final String prefix = "Server >> ";
-    private static final int UDP_PORT = 55555;
-    private static final int UDP_LENGTH = 65507;
-    private static final int BUFFER_LENGTH = 508;
-    private static final int UDP_TIMEOUT = 1000;
-    private static final byte URGENT_DATA = -77;
-    private static final int TCP_DATA_LENGTH = 65000;
     private static final String UNKNOWN_COMMAND = "Unknown command\n";
+    private static final int BLOCK_SIZE = 1500;
 
     private static Map<String, DataInputStream> fileQueue;
 
@@ -38,7 +27,6 @@ class Server {
         fileQueue = new HashMap<>();
 
         while(true) {
-            //System.out.println("Client " + connectionSocket.getInetAddress().toString() + " connected.");
             try{
                 selector.select();
                 Iterator selectedKeys = selector.selectedKeys().iterator();
@@ -122,35 +110,29 @@ class Server {
         System.out.println("Client request: " + command);
         System.out.println("Arguments: " + arguments);
 
-        switch (command) {
-            case "time\n": {
+        switch (command.trim()) {
+            case "time": {
                 sendTime(key);
             }
             break;
 
             case "echo": {
-                sendEcho(key, arguments);
+                sendEcho(key, arguments.trim());
             }
             break;
 
             case "close": {
-                //closeConnection(connectionSocket);
+                key.cancel();
             }
             break;
 
-            case "ls\n": {
+            case "ls": {
                 sendFileList(key);
             }
             break;
 
             case "download": {
-                //arguments += "\n";
                 sendFile(key, arguments);
-            }
-            break;
-
-            case "downloadUDP":{
-                //sendFileUDP(connectionSocket.getInetAddress(), arguments);
             }
             break;
 
@@ -225,7 +207,6 @@ class Server {
 
     private static void sendFile(SelectionKey key, String fileName) {
         File file = new File("Files/" + fileName.trim());
-        //System.out.println(file.getCanonicalPath());
         SocketChannel socketChannel = null;
 
         key.interestOps(SelectionKey.OP_WRITE);
@@ -243,19 +224,6 @@ class Server {
                 sendFileSize(socketChannel, file.length());
                 System.out.println("Success");
 
-                //int bytesRead;
-                //byte[] block = new byte[1500];
-                //ByteBuffer buffer;
-                /*LinkedList<ByteBuffer> byteBuffers = new LinkedList<>();
-                while ((bytesRead = reader.read(block)) > 0) {
-                    byte[] blockCopy = new byte[bytesRead];
-                    System.arraycopy(block, 0, blockCopy, 0, bytesRead);
-                    buffer = ByteBuffer.wrap(blockCopy);
-                    System.out.println("Added " + blockCopy.length + "bytes to buffer");
-                    byteBuffers.add(buffer);
-                    //System.out.print("\rSending file... " + bytesSend + " / " + fileLength + " " + (bytesSend * 100) / fileLength + "% ");
-                }*/
-                //reader.close();
                 fileQueue.put(String.valueOf(socketChannel.socket().getPort()), reader);
             } catch (IOException e) {
                 e.printStackTrace();
@@ -269,8 +237,6 @@ class Server {
                 e.printStackTrace();
             }
         }
-
-       // key.interestOps(SelectionKey.OP_READ);
     }
 
     private static void sendFilePart(SelectionKey key){
@@ -278,7 +244,7 @@ class Server {
         SocketChannel socketChannel = (SocketChannel) key.channel();
 
         DataInputStream reader = fileQueue.get(String.valueOf(socketChannel.socket().getPort()));
-        byte[] block = new byte[1500];
+        byte[] block = new byte[BLOCK_SIZE];
 
         try {
             int bytesRead = reader.read(block);
@@ -299,90 +265,6 @@ class Server {
         }
     }
 
-    private static void sendFileUDP(InetAddress address, String fileName){
-        DatagramSocket udpSocket = null;
-
-        try {
-            udpSocket = new DatagramSocket(UDP_PORT);
-            udpSocket.setSoTimeout(UDP_TIMEOUT);
-            udpSocket.setReuseAddress(true);
-        } catch (SocketException e) {
-            System.out.println("Failed to create socket: " + e.getMessage());
-            return;
-        }
-
-        File file = new File("./Files/" + fileName);
-        if(file.exists())
-        {
-            try {
-                DataInputStream reader = new DataInputStream(new FileInputStream(file));
-                long fileLength = file.length();
-
-                sendFileSize(udpSocket, address, fileLength);
-
-                System.out.println("File length: " + fileLength);
-
-                byte[] buffer = new byte[UDP_LENGTH];
-                int length;
-                long bytesSend = 0L;
-                byte blockCounter = 1;
-                //DatagramPacket udpPacket
-                while((length = reader.read(buffer, 0, UDP_LENGTH - 1)) > 0){
-                    try {
-                        buffer[UDP_LENGTH - 1] = blockCounter;
-                        do {
-                            DatagramPacket udpPacket = new DatagramPacket(buffer, buffer.length, address, UDP_PORT);
-                            udpSocket.send(udpPacket);
-                        } while (readStringFromSocket(udpSocket).equals("REJECTED"));
-                        if (blockCounter < 127)
-                            blockCounter++;
-                        else
-                            blockCounter = 0;
-                        bytesSend += length;
-                        System.out.print("\rSending file... " + bytesSend + " / " + fileLength + " " + (bytesSend * 100) / fileLength + "% ");
-                    }
-                    catch(IOException e){
-                        System.out.println(e.getMessage());
-                    }
-                }
-
-                System.out.println("");
-
-                reader.close();
-                udpSocket.close();
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
-        }
-    }
-
-    public static String getStringFromPacket(DatagramPacket packet) {
-        try {
-            String stringFromPacket = new String(packet.getData(), 0, packet.getLength());
-            return stringFromPacket;
-        } catch (Exception e) {
-            System.out.println("Can't read from socket!");
-            return null;
-        }
-    }
-    public static String readStringFromSocket(DatagramSocket socket) {
-        byte[] buffer = new byte[UDP_LENGTH];
-        DatagramPacket packet = new DatagramPacket(buffer, buffer.length);
-        try {
-            socket.setSoTimeout(100);
-            socket.receive(packet);
-            return getStringFromPacket(packet);
-        } catch (IOException e) {
-            return "FALSE";
-        }
-    }
-    private static void sendFileSize(DatagramSocket udpSocket, InetAddress address, long fileSize) throws IOException {
-        ByteBuffer buffer = ByteBuffer.allocate(Long.BYTES);
-        buffer.putLong(fileSize);
-        DatagramPacket udpPacket = new DatagramPacket(buffer.array(), buffer.array().length, address, UDP_PORT);
-        udpSocket.send(udpPacket);
-    }
-
     private static void sendFileSize(SocketChannel socketChannel, long fileLength) throws IOException {
         byte[] buffer = new byte[8];
         buffer[0] = (byte) (fileLength >>> 56);
@@ -396,18 +278,6 @@ class Server {
 
         socketChannel.write(ByteBuffer.wrap(buffer));
     }
-
-    private static void closeConnection(Socket socket){
-        try {
-            DataOutputStream out = new DataOutputStream(socket.getOutputStream());
-            out.writeBytes("close\n");
-            out.flush();
-            socket.close();
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-    }
-
 
     private static ServerSocketChannel getServerSocket() {
         ServerSocketChannel serverChannel = null;
