@@ -72,11 +72,12 @@ class Client {
                             downloadUDP(writer, file);
                         }
                         else{
+                            System.out.println("Prepare for download...");
                             download(clientSocket, writer, file);
                         }
                     } else {
                         serverResponse = inFromServer.readLine();
-                        System.out.println("Server >> " + serverResponse);
+                        System.out.println("Server >> " + serverResponse.trim());
                         if (serverResponse.equalsIgnoreCase("close")) {
                             clientSocket.close();
                         }
@@ -108,44 +109,36 @@ class Client {
         int urgentDataIndex = -1;
         boolean urgentDataFlag = false;
         long bytesReceived = 0L;
+        byte[] fileLengthBytes = new byte[8];
 
         try {
+            System.out.print("Waiting for file size...");
+            //inFromServer.readLong(fileLengthBytes);
             estimatedSize = inFromServer.readLong();
+            System.out.println("Success");
         } catch (IOException e) {
             e.printStackTrace();
         }
-        System.out.println("Estimated size " + estimatedSize);
+
+        if(estimatedSize == -1) {
+            System.out.println("File not found. Aborting download");
+            success = false;
+            return success;
+        }
+        else {
+            System.out.println("Estimated size " + estimatedSize);
+        }
+
         long startTime = System.nanoTime();
         try {
             while (file.length() < estimatedSize) {
                 //System.out.println("Prepare for read...");
                 length = inFromServer.read(buffer);
-
-                urgentDataFlag = false;
-
-                for(int i = 0; i < length; i++) {
-                    if(buffer[i] == URGENT_DATA){
-                        urgentDataIndex = i;
-                        urgentDataFlag = true;
-                        System.out.print("Out-of-band data. ");
-                        break;
-                    }
-                }
-
-                if(urgentDataFlag){
-                    bytesReceived += length - 1;
-                    byte[] temp = new byte[length];
-                    System.arraycopy(buffer, 0, temp, 0, urgentDataIndex);
-                    System.arraycopy(buffer, urgentDataIndex + 1, temp, urgentDataIndex, length - urgentDataIndex - 1);
-                    writer.write(temp, 0, length - 1);
-                }
-                else{
-                    bytesReceived += length;
-                    writer.write(buffer, 0, length);
-                }
+                bytesReceived += length;
+                writer.write(buffer, 0, length);
                 writer.flush();
-                System.out.println("Received: " + bytesReceived + " bytes");
-                //System.out.println("Downloading file... " + file.length() + " / " + estimatedSize + " " + (file.length() * 100) / estimatedSize + "% ");
+                //System.out.println("Received: " + bytesReceived + " bytes");
+                System.out.print("\rDownloading file... " + file.length() + " / " + estimatedSize + " " + (file.length() * 100) / estimatedSize + "% ");
             }
             writer.close();
             System.out.println("Download complete!");

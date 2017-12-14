@@ -9,11 +9,11 @@ import java.nio.channels.Selector;
 import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
 import java.nio.channels.spi.SelectorProvider;
+import java.nio.charset.Charset;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.LocalTime;
-import java.util.ArrayList;
-import java.util.Iterator;
+import java.util.*;
 
 class Server {
     private static final String prefix = "Server >> ";
@@ -25,14 +25,17 @@ class Server {
     private static final int TCP_DATA_LENGTH = 65000;
     private static final String UNKNOWN_COMMAND = "Unknown command\n";
 
+    private static Map<String, DataInputStream> fileQueue;
+
     public static void main(String argv[]) throws Exception {
-        String clientRequest;
         ServerSocketChannel serverChannel = getServerSocket();
 
         Selector selector;
         selector = SelectorProvider.provider().openSelector();
 
         serverChannel.register(selector, SelectionKey.OP_ACCEPT);
+
+        fileQueue = new HashMap<>();
 
         while(true) {
             //System.out.println("Client " + connectionSocket.getInetAddress().toString() + " connected.");
@@ -52,6 +55,8 @@ class Server {
                         accept(key, selector);
                     }else if(key.isReadable()){
                         read(key);
+                    }else if(key.isWritable()){
+                        sendFilePart(key);
                     }
                 }
             }
@@ -100,7 +105,8 @@ class Server {
             if (bytesRead != 0) {
                 byte[] dataCopy = new byte[bytesRead];
                 System.arraycopy(byteBuffer.array(), 0, dataCopy, 0, bytesRead);
-                clientRequest += new String(dataCopy);
+                clientRequest += Charset.defaultCharset().decode(ByteBuffer.wrap(dataCopy));
+
             }
         }
 
@@ -112,6 +118,9 @@ class Server {
             command = clientRequest;
             arguments = "";
         }
+
+        System.out.println("Client request: " + command);
+        System.out.println("Arguments: " + arguments);
 
         switch (command) {
             case "time\n": {
@@ -135,7 +144,8 @@ class Server {
             break;
 
             case "download": {
-                //sendFile(connectionSocket, arguments);
+                //arguments += "\n";
+                sendFile(key, arguments);
             }
             break;
 
@@ -213,41 +223,79 @@ class Server {
         }
     }
 
-    private static void sendFile(Socket socket, String fileName) {
-        File file = new File("./Files/" + fileName);
+    private static void sendFile(SelectionKey key, String fileName) {
+        File file = new File("Files/" + fileName.trim());
+        //System.out.println(file.getCanonicalPath());
+        SocketChannel socketChannel = null;
+
+        key.interestOps(SelectionKey.OP_WRITE);
+        socketChannel = (SocketChannel) key.channel();
+
+        System.out.println(file.getAbsolutePath());
         if (file.exists()) {
             try {
-                DataOutputStream out = new DataOutputStream(socket.getOutputStream());
                 DataInputStream reader = new DataInputStream(new FileInputStream(file));
-                System.out.println("Request for downloading " + fileName);
+                System.out.println("Request for downloading: " + fileName);
 
                 System.out.println("File length " + file.length());
-                long fileLength = file.length();
 
-                out.writeLong(fileLength);
-                out.flush();
+                System.out.print("Sending file length...");
+                sendFileSize(socketChannel, file.length());
+                System.out.println("Success");
 
-                byte[] buffer = new byte[TCP_DATA_LENGTH];
-                int length;
-                long bytesSend = 0L;
-                while ((length = reader.read(buffer)) > 0) {
-                    out.write(buffer, 0, length);
-                    //out.flush();
-
-                    bytesSend += length;
-
-                    if(bytesSend % 256 == 0){
-                        socket.sendUrgentData(URGENT_DATA);
-                        System.out.println("Urgent data sent");
-                    }
-
-                    System.out.print("\rSending file... " + bytesSend + " / " + fileLength + " " + (bytesSend * 100) / fileLength + "% ");
-                }
-                reader.close();
+                //int bytesRead;
+                //byte[] block = new byte[1500];
+                //ByteBuffer buffer;
+                /*LinkedList<ByteBuffer> byteBuffers = new LinkedList<>();
+                while ((bytesRead = reader.read(block)) > 0) {
+                    byte[] blockCopy = new byte[bytesRead];
+                    System.arraycopy(block, 0, blockCopy, 0, bytesRead);
+                    buffer = ByteBuffer.wrap(blockCopy);
+                    System.out.println("Added " + blockCopy.length + "bytes to buffer");
+                    byteBuffers.add(buffer);
+                    //System.out.print("\rSending file... " + bytesSend + " / " + fileLength + " " + (bytesSend * 100) / fileLength + "% ");
+                }*/
+                //reader.close();
+                fileQueue.put(String.valueOf(socketChannel.socket().getPort()), reader);
             } catch (IOException e) {
                 e.printStackTrace();
 
             }
+        }else{
+            System.out.println("File not found!");
+            try {
+                sendFileSize(socketChannel, -1);
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        }
+
+       // key.interestOps(SelectionKey.OP_READ);
+    }
+
+    private static void sendFilePart(SelectionKey key){
+        key.interestOps(SelectionKey.OP_WRITE);
+        SocketChannel socketChannel = (SocketChannel) key.channel();
+
+        DataInputStream reader = fileQueue.get(String.valueOf(socketChannel.socket().getPort()));
+        byte[] block = new byte[1500];
+
+        try {
+            int bytesRead = reader.read(block);
+            if(bytesRead == -1){
+                key.interestOps(SelectionKey.OP_READ);
+                return;
+            }
+            int bytesWritten = socketChannel.write(ByteBuffer.wrap(block));
+            System.out.println("Bytes written:" + bytesWritten);
+        } catch (IOException e) {
+            key.cancel();
+            try {
+                socketChannel.close();
+            } catch (Exception e1) {
+                e.printStackTrace();
+            }
+            System.out.println("Socket closed!");
         }
     }
 
@@ -335,6 +383,20 @@ class Server {
         udpSocket.send(udpPacket);
     }
 
+    private static void sendFileSize(SocketChannel socketChannel, long fileLength) throws IOException {
+        byte[] buffer = new byte[8];
+        buffer[0] = (byte) (fileLength >>> 56);
+        buffer[1] = (byte) (fileLength >>> 48);
+        buffer[2] = (byte) (fileLength >>> 40);
+        buffer[3] = (byte) (fileLength >>> 32);
+        buffer[4] = (byte) (fileLength >>> 24);
+        buffer[5] = (byte) (fileLength >>> 16);
+        buffer[6] = (byte) (fileLength >>> 8);
+        buffer[7] = (byte) (fileLength >>> 0);
+
+        socketChannel.write(ByteBuffer.wrap(buffer));
+    }
+
     private static void closeConnection(Socket socket){
         try {
             DataOutputStream out = new DataOutputStream(socket.getOutputStream());
@@ -364,7 +426,7 @@ class Server {
                 }
                 serverChannel = ServerSocketChannel.open();
                 serverChannel.configureBlocking(false);
-                serverChannel.socket().bind(new InetSocketAddress("localhost", port));
+                serverChannel.socket().bind(new InetSocketAddress(port));
             } catch (Exception e) {
                 System.out.println("can't start server on this port!");
                 port = -1;
