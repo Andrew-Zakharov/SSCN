@@ -127,7 +127,7 @@ public class ServerThread extends Thread {
                                 return;
                             }
                         }
-                    } while (readStringFromSocket().equals("REJECTED"));
+                    } while (response.equals("REJECTED"));
 
                     if (blockCounter < 127)
                         blockCounter++;
@@ -146,24 +146,6 @@ public class ServerThread extends Thread {
         }
     }
 
-    private String getStringFromPacket(DatagramPacket packet) {
-        try {
-            return new String(packet.getData(), 0, packet.getLength());
-        } catch (Exception e) {
-            System.out.println("Can't read from socket: " + e.getMessage());
-            return null;
-        }
-    }
-    private String readStringFromSocket() {
-        byte[] buffer = new byte[UDP_DATA_LENGTH];
-        DatagramPacket packet = new DatagramPacket(buffer, buffer.length);
-        try {
-            Server.serverSocket.receive(packet);
-            return getStringFromPacket(packet);
-        } catch (IOException e) {
-            return "FALSE";
-        }
-    }
     private void sendFileSize(long fileSize) {
         ByteBuffer buffer = ByteBuffer.allocate(Long.BYTES);
         buffer.putLong(fileSize);

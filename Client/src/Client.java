@@ -120,7 +120,7 @@ class Client {
                         writer.write(buffer, 0, (int) (fileSize - file.length()));
                     }
 
-                    //sendBytes("RECEIVED".getBytes());
+                    sendBytes("RECEIVED".getBytes());
                     successCounter += 1;
                 } else {
                     sendBytes("REJECTED".getBytes());
@@ -136,7 +136,7 @@ class Client {
         long endTime = System.nanoTime();
         NumberFormat formatter = new DecimalFormat("#0.00");
         System.out.println("Time: " + formatter.format((double)(endTime - startTime) / 1000000000L) + " s");
-
+        System.out.println("Hit percent: " + successCounter/(successCounter + failedCounter));
         try {
             writer.close();
         } catch (IOException e) {

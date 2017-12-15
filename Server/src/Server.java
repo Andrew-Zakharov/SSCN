@@ -19,7 +19,7 @@ class Server {
                 String clientRequest = getClientRequest(packet);
                 String clientID = packet.getAddress().toString() + ":" + String.valueOf(packet.getPort());
 
-                System.out.println("Client request: " + clientRequest);
+                //System.out.println("Client request: " + clientRequest);
 
                 if (!queue.containsKey(clientID)) {
                     if(getCommand(clientRequest).equals("download")){
