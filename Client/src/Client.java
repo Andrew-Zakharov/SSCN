@@ -6,248 +6,166 @@ import java.text.NumberFormat;
 import java.util.Arrays;
 
 class Client {
-    final static private int UDP_PORT = 55555;
-    final private static int BUFFER_LENGTH = 1024;
-    final private static int UDP_LENGTH = 65507;
-    final private static int UDP_RECEIVE_TIMEOUT = 1000;
-    final private static byte URGENT_DATA = -77;
-    final private static int TCP_DATA_LENGTH = 65000;
+    final private static int UDP_LENGTH = 65000;
     final private static String DOWNLOADS_FOLDER_NAME = "Downloads";
-    public final static String SERVER_ADDRESS = "192.168.2.3";
+
+    private static DatagramSocket clientSocket;
+    private static InetAddress serverAddress;
+    private static int serverPort;
 
     public static void main(String argv[]) throws Exception {
-        String request, serverResponse;
+        String request;
         BufferedReader inFromUser = new BufferedReader(new InputStreamReader(System.in));
-        Socket clientSocket = null;
-        DataOutputStream outToServer = null;
-        DataInputStream inFromServer = null;
-        boolean connected = false;
+        clientSocket = new DatagramSocket();
+        clientSocket.setReuseAddress(true);
 
         boolean downloadFolderStatus = createDownloadsFolder();
+        boolean run = true;
 
-        while (!connected) {
-            String ip, port;
-            System.out.println("Enter server ip address: ");
-            ip = inFromUser.readLine();
-            System.out.println("Enter server port: ");
-            port = inFromUser.readLine();
+        String address, port;
+        System.out.print("Enter server ip address: ");
+        address = inFromUser.readLine();
+        System.out.print("Enter server port: ");
+        port = inFromUser.readLine();
 
-            try {
-                clientSocket = new Socket(ip, Integer.parseInt(port));
-            }
-            catch(UnknownHostException e){
-                System.out.println("Can't connect to " + ip + " host.");
-            }
-            catch (ConnectException e){
-                System.out.println("Can't connect to server. Try again.");
-            }
+        serverAddress = InetAddress.getByName(address);
+        serverPort = Integer.parseInt(port);
 
-            if (clientSocket != null && clientSocket.isConnected()) {
-                clientSocket.setKeepAlive(true);
-                clientSocket.setOOBInline(true);
-                connected = true;
-                outToServer = new DataOutputStream(clientSocket.getOutputStream());
-                inFromServer = new DataInputStream(clientSocket.getInputStream());
-            }
+        System.out.println("Server now is " + serverAddress.toString() + ":" + serverPort);
 
-            while (clientSocket != null && !clientSocket.isClosed()) {
-                System.out.print("You >> ");
-                request = inFromUser.readLine();
+        while(run)
+        {
+            request = getUserRequest(inFromUser);
+            if(request != null){
+                request.trim();
+                sendBytes(request.getBytes());
 
-                try {
-                    outToServer.writeBytes(request + "\n");
-                    outToServer.flush();
+                if (isDownload(request)) {
+                    String fileName = request.substring(request.indexOf(' ') + 1);
 
-                    if (request.startsWith("download") || request.startsWith("downloadUDP")) {
-                        String fileName = request.substring(request.indexOf(' ') + 1);
-
-                        if(downloadFolderStatus){
-                            fileName = DOWNLOADS_FOLDER_NAME + "/" + fileName;
-                        }
-
-                        File file = new File(fileName);
-                        DataOutputStream writer = new DataOutputStream(new FileOutputStream(file));
-
-                        if(request.startsWith("downloadUDP")) {
-                            downloadUDP(writer, file);
-                        }
-                        else{
-                            download(clientSocket, writer, file);
-                        }
-                    } else {
-                        serverResponse = inFromServer.readLine();
-                        System.out.println(serverResponse);
-                        if (serverResponse.equalsIgnoreCase("close")) {
-                            clientSocket.close();
-                        }
+                    if(downloadFolderStatus){
+                        fileName = DOWNLOADS_FOLDER_NAME + "/" + fileName;
                     }
-                } catch (IOException exception) {
-                    System.out.println(exception.getMessage());
-                    System.out.println("A Error occured when sending to server. Try again later.\n");
-                }
 
-
-                if (clientSocket.isClosed()) {
-                    System.out.println("Connection closed.\n");
+                    File file = new File(fileName);
+                    DataOutputStream writer = new DataOutputStream(new FileOutputStream(file));
+                    download(writer, file);
+                } else {
+                    byte[] buffer = new byte[UDP_LENGTH];
+                    DatagramPacket packet = new DatagramPacket(buffer, buffer.length);
+                    clientSocket.receive(packet);
+                    System.out.println("Server >> " + getString(packet));
                 }
             }
         }
     }
 
-    private static boolean download(Socket socket, DataOutputStream writer, File file){
-        DataInputStream inFromServer = null;
-        boolean success = true;
+    private static String getString(DatagramPacket packet){
+        String string = null;
         try {
-            inFromServer = new DataInputStream(socket.getInputStream());
-        } catch (IOException e) {
-            e.printStackTrace();
+            string = new String(packet.getData(), 0, packet.getLength());
+        } catch (Exception e) {
+            System.out.println("Can't read string from packet: " + e.getMessage());
         }
-        byte[] buffer = new byte[TCP_DATA_LENGTH];
-        int length;
-        long estimatedSize = 0;
-        int urgentDataIndex = -1;
-        boolean urgentDataFlag = false;
-        long bytesReceived = 0L;
 
-        try {
-            estimatedSize = inFromServer.readLong();
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-        System.out.println("Estimated size " + estimatedSize);
-        long startTime = System.nanoTime();
-        try {
-            while (file.length() < estimatedSize) {
-                //System.out.println("Prepare for read...");
-                length = inFromServer.read(buffer);
-
-                urgentDataFlag = false;
-
-                for(int i = 0; i < length; i++) {
-                    if(buffer[i] == URGENT_DATA){
-                        urgentDataIndex = i;
-                        urgentDataFlag = true;
-                        System.out.print("Out-of-band data. ");
-                        break;
-                    }
-                }
-
-                if(urgentDataFlag){
-                    bytesReceived += length - 1;
-                    byte[] temp = new byte[length];
-                    System.arraycopy(buffer, 0, temp, 0, urgentDataIndex);
-                    System.arraycopy(buffer, urgentDataIndex + 1, temp, urgentDataIndex, length - urgentDataIndex - 1);
-                    writer.write(temp, 0, length - 1);
-                }
-                else{
-                    bytesReceived += length;
-                    writer.write(buffer, 0, length);
-                }
-                writer.flush();
-                System.out.println("Received: " + bytesReceived + " bytes");
-                //System.out.println("Downloading file... " + file.length() + " / " + estimatedSize + " " + (file.length() * 100) / estimatedSize + "% ");
-            }
-            writer.close();
-            System.out.println("Download complete!");
-        } catch (IOException exception) {
-            System.out.println(exception.getMessage());
-            System.out.println("Can't write bytes. Download canceled.");
-            success = false;
-        }
-        long endTime = System.nanoTime();
-        NumberFormat formatter = new DecimalFormat("#0.00");
-        System.out.println("Time: " + formatter.format((double)(endTime - startTime) / 1000000000L) + " s");
-
-        return success;
+        return string;
     }
 
+    private static boolean isDownload(String request){
+        return request.startsWith("download");
+    }
 
-    public static void writeStringToSocket(DatagramSocket socket, String string) {
+    private static String getUserRequest(BufferedReader reader){
+        System.out.print("You >> ");
+        String clientRequest = null;
         try {
-            InetAddress inetAddress = InetAddress.getByName(SERVER_ADDRESS);
+            clientRequest = reader.readLine();
+        } catch (IOException e) {
+            System.out.println(e.getMessage());
+        }
+
+        return clientRequest;
+    }
+
+    private static void sendBytes(byte[] buffer) {
+        DatagramPacket packet = new DatagramPacket(buffer, buffer.length, serverAddress, serverPort);
+        try {
+            clientSocket.send(packet);
+        } catch (IOException e) {
+            System.out.println("Can't send packet: " + e.getMessage());
+        }
+    }
+
+    private static void writeStringToSocket(String string) {
+        try {
             byte[] buffer = string.getBytes();
-            DatagramPacket packet = new DatagramPacket(buffer, buffer.length, inetAddress, UDP_PORT);
-            socket.send(packet);
+            DatagramPacket packet = new DatagramPacket(buffer, buffer.length, serverAddress, serverPort);
+            clientSocket.send(packet);
         } catch (Exception e) {
             System.out.println("Can't write to socket!");
         }
     }
-    private static boolean downloadUDP(DataOutputStream writer, File file){
-        DatagramSocket udpSocket = null;
+    private static boolean download(DataOutputStream writer, File file){
         boolean success = true;
         byte[] buffer = new byte[UDP_LENGTH];
         DatagramPacket udpPacket = new DatagramPacket(buffer, buffer.length);
-        // Arrays.fill(buffer, (byte) 0);
         byte blockCounter = 0;
         double successCounter = 0;
         double failedCounter = 0;
-        try {
-            udpSocket = new DatagramSocket(UDP_PORT);
-            udpSocket.setSoTimeout(UDP_RECEIVE_TIMEOUT);
-            udpSocket.setReuseAddress(true);
-        } catch (SocketException e) {
-            e.printStackTrace();
-        }
 
-        long fileSize = getFileSize(udpSocket);
+        long fileSize = getFileSize();
         System.out.println("File size: " + fileSize);
 
         long startTime = System.nanoTime();
         while(file.length() < fileSize){
             try {
-                udpSocket.receive(udpPacket);
+                //System.out.print("Waiting packet...");
+                clientSocket.receive(udpPacket);
+                //System.out.print("Success");
                 buffer = udpPacket.getData();
-                    if (buffer[UDP_LENGTH - 1] == blockCounter + 1 || buffer[UDP_LENGTH - 1] == blockCounter - 127) {
-                        blockCounter = buffer[UDP_LENGTH - 1];
-                        if ((fileSize - file.length() - UDP_LENGTH) >= 0) {
-                            writer.write(buffer, 0, udpPacket.getLength() - 1);
-                        } else {
-                            writer.write(buffer, 0, (int) (fileSize - file.length()));
-                        }
-
-                        writeStringToSocket(udpSocket, "RECEIVED");
-                        successCounter += 1;
+                if (buffer[UDP_LENGTH - 1] == blockCounter + 1 || buffer[UDP_LENGTH - 1] == blockCounter - 127) {
+                    blockCounter = buffer[UDP_LENGTH - 1];
+                    if ((fileSize - file.length() - UDP_LENGTH) >= 0) {
+                       writer.write(buffer, 0, udpPacket.getLength() - 1);
                     } else {
-                        writeStringToSocket(udpSocket, "REJECTED");
-                        failedCounter += 1;
-                        continue;
+                        //writer.write(buffer, 0, (int) (fileSize - file.length()));
+                writer.write(buffer, 0, buffer.length);
                     }
-             /*  writer.write(udpPacket.getData(), 0, udpPacket.getLength());
-                writer.flush();*/
+
+                    writeStringToSocket("RECEIVED");
+                    successCounter += 1;
+                } else {
+                    writeStringToSocket("REJECTED");
+                    failedCounter += 1;
+                    continue;
+                }
                 System.out.print("\rDownloading file... " + file.length() + " / " + fileSize + " " + (file.length() * 100) / fileSize + "% ");
             } catch (IOException e) {
-                writeStringToSocket(udpSocket, "REJECTED");
+                writeStringToSocket("REJECTED");
                 failedCounter += 1;
-                continue;
             }
         }
         long endTime = System.nanoTime();
-        //double bandwidth = file.length() / (double)((endTime - startTime) / 1000000000L);
         NumberFormat formatter = new DecimalFormat("#0.00");
-        //System.out.print(formatter.format(bandwidth / (1024 * 1024)) + " MB/s ");
         System.out.println("Time: " + formatter.format((double)(endTime - startTime) / 1000000000L) + " s");
-        System.out.println("Hit percent: " + failedCounter * 100 / (successCounter + failedCounter));
 
         try {
             writer.close();
-            udpSocket.close();
         } catch (IOException e) {
             e.printStackTrace();
         }
 
-        if(success) {
-            System.out.println("Download complete!");
-        }
+        System.out.println("Download complete!");
 
         return success;
     }
 
-    private static long getFileSize(DatagramSocket udpSocket){
+    private static long getFileSize(){
         ByteBuffer buffer = ByteBuffer.allocate(Long.BYTES);
         long fileSize = 0;
         DatagramPacket udpPacket = new DatagramPacket(buffer.array(), buffer.array().length);
         try {
-            udpSocket.receive(udpPacket);
+            clientSocket.receive(udpPacket);
             buffer.put(udpPacket.getData());
             buffer.flip();
             fileSize = buffer.getLong();
