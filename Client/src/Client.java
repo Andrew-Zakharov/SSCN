@@ -96,19 +96,9 @@ class Client {
         }
     }
 
-    private static void writeStringToSocket(String string) {
-        try {
-            byte[] buffer = string.getBytes();
-            DatagramPacket packet = new DatagramPacket(buffer, buffer.length, serverAddress, serverPort);
-            clientSocket.send(packet);
-        } catch (Exception e) {
-            System.out.println("Can't write to socket!");
-        }
-    }
     private static boolean download(DataOutputStream writer, File file){
         boolean success = true;
         byte[] buffer = new byte[UDP_LENGTH];
-        DatagramPacket udpPacket = new DatagramPacket(buffer, buffer.length);
         byte blockCounter = 0;
         double successCounter = 0;
         double failedCounter = 0;
@@ -119,29 +109,27 @@ class Client {
         long startTime = System.nanoTime();
         while(file.length() < fileSize){
             try {
-                //System.out.print("Waiting packet...");
+                DatagramPacket udpPacket = new DatagramPacket(buffer, buffer.length);
                 clientSocket.receive(udpPacket);
-                //System.out.print("Success");
                 buffer = udpPacket.getData();
                 if (buffer[UDP_LENGTH - 1] == blockCounter + 1 || buffer[UDP_LENGTH - 1] == blockCounter - 127) {
                     blockCounter = buffer[UDP_LENGTH - 1];
                     if ((fileSize - file.length() - UDP_LENGTH) >= 0) {
                        writer.write(buffer, 0, udpPacket.getLength() - 1);
                     } else {
-                        //writer.write(buffer, 0, (int) (fileSize - file.length()));
-                writer.write(buffer, 0, buffer.length);
+                        writer.write(buffer, 0, (int) (fileSize - file.length()));
                     }
 
-                    writeStringToSocket("RECEIVED");
+                    //sendBytes("RECEIVED".getBytes());
                     successCounter += 1;
                 } else {
-                    writeStringToSocket("REJECTED");
+                    sendBytes("REJECTED".getBytes());
                     failedCounter += 1;
                     continue;
                 }
                 System.out.print("\rDownloading file... " + file.length() + " / " + fileSize + " " + (file.length() * 100) / fileSize + "% ");
             } catch (IOException e) {
-                writeStringToSocket("REJECTED");
+                sendBytes("REJECTED".getBytes());
                 failedCounter += 1;
             }
         }

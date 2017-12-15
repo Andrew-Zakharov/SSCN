@@ -12,17 +12,19 @@ public class ServerThread extends Thread {
     private String arguments;
     private InetAddress address;
     private int port;
-    private DatagramSocket serverSocket;
 
-    ServerThread(DatagramSocket serverSocket, InetAddress address, int port, String command, String arguments){
+    ServerThread(InetAddress address
+                , int port
+                , String command
+                , String arguments){
         this.command = command;
         this.arguments = arguments;
         this.address = address;
         this.port = port;
-        this.serverSocket = serverSocket;
     }
 
     public void run(){
+        System.out.println("Started response thread to command: " + command);
         switch(command){
             case "time": {
                 sendTime();
@@ -40,7 +42,9 @@ public class ServerThread extends Thread {
             break;
 
             case "download": {
+                String clientID = address.toString() + ":" + String.valueOf(port);
                 sendFile(arguments);
+                Server.queue.remove(clientID);
             }
             break;
 
@@ -48,6 +52,7 @@ public class ServerThread extends Thread {
                 sendBytes("Unknown Command".getBytes());
             }
         }
+        System.out.println("Ended response thread to command: " + command);
     }
 
     private static ArrayList<String> getFileNames() {
@@ -79,7 +84,7 @@ public class ServerThread extends Thread {
     private void sendBytes(byte[] buffer){
         DatagramPacket packet = new DatagramPacket(buffer, buffer.length, address, port);
         try {
-            serverSocket.send(packet);
+            Server.serverSocket.send(packet);
         } catch (IOException e) {
             System.out.println("Can't send packet: " + e.getMessage());
         }
@@ -93,6 +98,7 @@ public class ServerThread extends Thread {
             try {
                 DataInputStream reader = new DataInputStream(new FileInputStream(file));
                 long fileLength = file.length();
+                String clientID = address.toString() + ":" + String.valueOf(port);
 
                 sendFileSize(file.length());
 
@@ -102,10 +108,25 @@ public class ServerThread extends Thread {
                 byte blockCounter = 1;
 
                 while((length = reader.read(buffer, 0, UDP_DATA_LENGTH - 1)) > 0) {
-                    //while((length = reader.read(buffer, 0, UDP_DATA_LENGTH)) > 0) {
+                    String response;
                     buffer[UDP_DATA_LENGTH - 1] = blockCounter;
+
                     do {
                         sendBytes(buffer);
+
+                        long startTimeout = System.currentTimeMillis();
+
+                        while (true) {
+                            response = Server.queue.get(clientID);
+                            if (!response.equalsIgnoreCase("")) {
+                                Server.queue.replace(clientID, "");
+                                break;
+                            }
+                            if (System.currentTimeMillis() - startTimeout > 10000) {
+                                System.out.println(Thread.currentThread().getName() + ": no response from client. Sending aborted");
+                                return;
+                            }
+                        }
                     } while (readStringFromSocket().equals("REJECTED"));
 
                     if (blockCounter < 127)
@@ -137,7 +158,7 @@ public class ServerThread extends Thread {
         byte[] buffer = new byte[UDP_DATA_LENGTH];
         DatagramPacket packet = new DatagramPacket(buffer, buffer.length);
         try {
-            serverSocket.receive(packet);
+            Server.serverSocket.receive(packet);
             return getStringFromPacket(packet);
         } catch (IOException e) {
             return "FALSE";
