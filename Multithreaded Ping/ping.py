@@ -13,14 +13,14 @@ if __name__ == '__main__':
         threads = []
         for host in sys.argv[1:]:
             event = threading.Event()
-            thread = PingThread(host, event, ping_socket, lock, 2, 1024)
+            thread = PingThread(host, event, ping_socket, lock)
             threads.append((id(thread) & 0xFFFF, event, thread))
             thread.setDaemon(True)
             thread.start()
             
         while(any(thread[2].isAlive() == True for thread in threads)):
         
-            ready = select.select([ping_socket], [], [], 4)
+            ready = select.select([ping_socket], [], [], 1)
             if not ready[0]:
                 continue
                 

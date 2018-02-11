@@ -22,7 +22,6 @@ class PingThread (threading.Thread):
         threading.Thread.run(self)
         for i in range(self.count):
             self.send_echo_request()
-            print("Wait for response")
             if(self.event.wait(self.timeout)):
                 print("Reply from ", self.destinationAddress)
             else:
@@ -35,7 +34,6 @@ class PingThread (threading.Thread):
     def send_echo_request(self):
         with self.lock:
             self.socket.sendto(self.create_echo_request(), (self.destinationAddress, 1))
-        print("Sending packet with number", self.sequence_number)
         self.sequence_number += 1
 
     def create_echo_request(self):
