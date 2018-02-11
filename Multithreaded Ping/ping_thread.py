@@ -13,7 +13,7 @@ class PingThread (threading.Thread):
         self.count = count
         self.destinationAddress = destinationAddress
         self.receivedPackets = []
-        self.sequence_number = 0
+        self.sequence_number = 1
         self.lock = lock
         self.socket = socket
         self.id = id(self) & 0xFFFF
@@ -22,19 +22,21 @@ class PingThread (threading.Thread):
         threading.Thread.run(self)
         for i in range(self.count):
             self.send_echo_request()
+            print("Wait for response")
             if(self.event.wait(self.timeout)):
                 print("Reply from ", self.destinationAddress)
             else:
                 print("Destination host unreachable")
-                self.event.clear()
                 
-            self.sequence_number += 1
+            self.event.clear()
                 
         print("Thread end")
     
     def send_echo_request(self):
         with self.lock:
             self.socket.sendto(self.create_echo_request(), (self.destinationAddress, 1))
+        print("Sending packet with number", self.sequence_number)
+        self.sequence_number += 1
 
     def create_echo_request(self):
         checksum = 0

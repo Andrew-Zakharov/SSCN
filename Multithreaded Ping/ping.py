@@ -13,14 +13,14 @@ if __name__ == '__main__':
         threads = []
         for host in sys.argv[1:]:
             event = threading.Event()
-            thread = PingThread(host, event, ping_socket, lock)
+            thread = PingThread(host, event, ping_socket, lock, 2, 1024)
             threads.append((id(thread) & 0xFFFF, event, thread))
             thread.setDaemon(True)
             thread.start()
             
         while(any(thread[2].isAlive() == True for thread in threads)):
         
-            ready = select.select([ping_socket], [], [], 2)
+            ready = select.select([ping_socket], [], [], 4)
             if not ready[0]:
                 continue
                 
@@ -35,7 +35,7 @@ if __name__ == '__main__':
             
             index = [index for index, thread in enumerate(threads) if thread[0] == port]
             
-            if type != 8 and index:
+            if type == 0 and index:
                 threads[index[0]][2].add_received_packet(recPacket)
                 threads[index[0]][1].set()
             
