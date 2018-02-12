@@ -66,3 +66,18 @@ def create_socket():
         raise
     
     return ping_socket
+	
+	
+def create_receive_socket(port):
+    s = socket.socket(family = socket.AF_INET, type = socket.SOCK_RAW, proto = socket.IPPROTO_ICMP)
+    try:
+        s.bind(('', port))
+    except socket.error as e:
+        raise IOError('Unable to bind receiver socket: {}'.format(e))
+    return s
+
+def create_send_socket(ttl):
+    s = socket.socket(family = socket.AF_INET, type = socket.SOCK_DGRAM, proto = socket.IPPROTO_UDP)
+    s.setsockopt(socket.SOL_IP, socket.IP_TTL, ttl)
+    return s
+		
