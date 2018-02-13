@@ -66,18 +66,25 @@ def create_socket():
         raise
     
     return ping_socket
+    
+def print_statistics(threads):
+    for id, event, thread in threads:
+        print("\nPing statistics for {} ({}):".format(thread.destinationAddress, socket.gethostbyname(thread.destinationAddress)))
+        hit_percent = 0
+        lost_count = thread.count - thread.received_packet_count
+        if lost_count: hit_percent = thread.received_packet_count / thread.count * 100
+        print("\tPackets: Sent = {:}, Received = {:}, Lost = {:} ({:}% loss)".format(thread.count, thread.received_packet_count, lost_count, hit_percent))
 	
 	
 def create_receive_socket(port):
-    s = socket.socket(family = socket.AF_INET, type = socket.SOCK_RAW, proto = socket.IPPROTO_ICMP)
     try:
-        s.bind(('', port))
+        s = socket.socket(family = socket.AF_INET, type = socket.SOCK_RAW, proto = socket.IPPROTO_ICMP)
     except socket.error as e:
         raise IOError('Unable to bind receiver socket: {}'.format(e))
     return s
 
 def create_send_socket(ttl):
-    s = socket.socket(family = socket.AF_INET, type = socket.SOCK_DGRAM, proto = socket.IPPROTO_UDP)
+    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     s.setsockopt(socket.SOL_IP, socket.IP_TTL, ttl)
     return s
 		

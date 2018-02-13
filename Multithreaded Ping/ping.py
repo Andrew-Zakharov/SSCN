@@ -2,7 +2,7 @@
 
 import os, sys, socket, select, time
 from ping_thread import *
-from utils import get_timer, create_socket
+from utils import get_timer, create_socket, print_statistics
 
 lock = threading.Lock()
         
@@ -38,7 +38,9 @@ if __name__ == '__main__':
             if type == 0 and index:
                 threads[index[0]][2].add_received_packet(recPacket)
                 threads[index[0]][1].set()
+                
             
-        print("End pinging")
+            
+        print_statistics(threads)
         [thread.join() for id, event, thread in threads]
         ping_socket.close()

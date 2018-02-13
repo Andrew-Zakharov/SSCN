@@ -1,5 +1,5 @@
 import threading, struct
-from utils import _checksum
+from utils import _checksum, get_timer
 
 ICMP_ECHO_REQUEST = 8
 ECHO_REQUEST_DEFAULT_COUNT = 4
@@ -17,19 +17,22 @@ class PingThread (threading.Thread):
         self.lock = lock
         self.socket = socket
         self.id = id(self) & 0xFFFF
+        self.timer = get_timer()
+        self.received_packet_count = 0
 
     def run(self):
         threading.Thread.run(self)
         for i in range(self.count):
             self.send_echo_request()
+            send_time = self.timer()
             if(self.event.wait(self.timeout)):
-                print("Reply from ", self.destinationAddress)
+                receive_time = self.timer()
+                self.received_packet_count += 1
+                print("Reply from ", self.destinationAddress, "in ", int(round((receive_time - send_time) * 1000)), " ms")
             else:
-                print("Destination host unreachable")
+                print("Request timeout for ", self.destinationAddress)
                 
             self.event.clear()
-                
-        print("Thread end")
     
     def send_echo_request(self):
         with self.lock:
